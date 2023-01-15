@@ -23,7 +23,7 @@ screen = pygame.display.set_mode(screen_size)
 FPS = 50
 
 tile_images = {
-    'wall': load_image('box1.png'),
+    'wall': load_image('box.png'),
     'empty': load_image('grass.png')
 }
 player_image = load_image('mar.png')
@@ -74,7 +74,6 @@ class Player(Sprite):
         self.pos = (x, y)
         for sprite in sprite_group:
             camera.apply(sprite)
-
 
 class Camera:
     def __init__(self):
