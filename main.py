@@ -159,7 +159,7 @@ def main():
 
         pygame.display.flip()
     pygame.quit()
-
+print('wwwwwwwwwwwww')
 
 if __name__ == '__main__':
     game()
