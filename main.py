@@ -1,11 +1,8 @@
 import pygame
 from numpy import roll
 import os
-import sys
+from time import time
 
-# воспроизведение фоновой музыки
-# pygame.mixer.music.play(-1)
-# pygame.mixer.music.stop()
 flag_mainwindow = True
 flag_game = False
 flag_leveleditor = False
@@ -14,9 +11,10 @@ screen = pygame.display.set_mode((1920, 1080), pygame.FULLSCREEN)
 
 
 def load_level(filename):
-    with open("levels/" + filename, 'r') as mapFile:
+    filename = "levels/" + filename
+    with open(filename, 'r') as mapFile:
         level_map = [line.strip() for line in mapFile]
-        return level_map
+    return level_map
 
 
 def load_image(name, color_key=None):
@@ -56,7 +54,10 @@ class Sprite(pygame.sprite.Sprite):
         super().__init__(group)
         self.rect = None
 
+    def get_event(self, event):
+        pass
 
+tile_width = tile_height = 125
 class Tile(Sprite):
     def __init__(self, tile_type, pos_x, pos_y):
         super().__init__(sprite_group)
@@ -65,6 +66,12 @@ class Tile(Sprite):
             tile_width * pos_x, tile_height * pos_y)
         self.abs_pos = (self.rect.x, self.rect.y)
 
+
+player = None
+running = True
+clock = pygame.time.Clock()
+sprite_group = SpriteGroup()
+hero_group = SpriteGroup()
 
 images = {
     'red_orb_cl1': pygame.image.load('images//r_cl1.png'),
@@ -134,15 +141,40 @@ class MainWindow:
         self.new_level = True
 
 
+flag_mouse_click = False  # Если было произведено нажатие на мышку
+
+
 class Game:
     def __init__(self, color, level):
         self.color = color  # Цвет игрока
-        self.generate_level('levels/ye.txt')
+        self.level = load_level('ананас.txt')
+        self.actual_pos = 2
+        self.health = int(self.level[1][-1])
+        self.generate_level(self.level)
 
-    def play_music(self):  # Воспроизведение музыки
-        pygame.mixer.music.load('songs/залпом-ананас.mp3')
+    def play_music(self, level_inf):  # Воспроизведение музыки
+        pygame.mixer.music.load('songs/' + ''.join(level_inf[0]))
         pygame.mixer.music.set_volume(0.1)
-        pygame.mixer.music.play(-1)
+        pygame.mixer.music.play()
+
+    def mouse_click(self, button):
+        global flag_mouse_click
+        flag_mouse_click = True
+        if not (button == 'left' and '1' in self.level[self.actual_pos] or button == 'right' and '2' in self.level[
+            self.actual_pos]):
+            self.health -= 1
+            self.check_health()
+            # Если персонаж мёртв игра начинается с начала
+
+    def mouse_dont_clicked(self):
+        self.health -= 1
+        self.check_health()
+
+    def check_health(self):
+        if self.health == 0:
+            self.health = int(self.level[1][-1])
+            self.actual_pos = 2
+            self.play_music(self.level)
 
     def generate_level(self, level_inf):
         new_player, x, y = None, None, None
@@ -160,6 +192,7 @@ class LevelEditor:
     def __init__(self, level):
         self.level = level
 
+
 class Camera:
     def __init__(self):
         self.dx = 0
@@ -173,8 +206,10 @@ class Camera:
         self.dx = 0
         self.dy = 0
 
+
 def test_game():
-    pygame.init()
+    global flag_mouse_click
+
     running = True
     screen_size = (1920, 1080)
     screen = pygame.display.set_mode(screen_size, pygame.FULLSCREEN)
@@ -182,17 +217,24 @@ def test_game():
     clock = pygame.time.Clock()
     sprite_group = SpriteGroup()
     hero_group = SpriteGroup()
-    level_map = 'levels/ye.txt'
+    level_map = load_level('ананас.txt')
     play_game = Game('red', level_map)
+    hero, max_x, max_y = play_game.generate_level(level_map)
     while running:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
-            hero, max_x, max_y = play_game.generate_level(level_map)
-            sprite_group.draw(screen)
-            hero_group.draw(screen)
-            clock.tick(FPS)
-            pygame.display.flip()
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    if event.button == 1:  # левая кнопка мыши
+                        play_game.mouse_click('left')
+                    if event.button == 3:  # правая кнопка мыши
+                        play_game.mouse_click('right')
+            if flag_mouse_click is True:
+                flag_mouse_click = False
+        sprite_group.draw(screen)
+        hero_group.draw(screen)
+        clock.tick(FPS)
+        pygame.display.flip()
     pygame.quit()
 
 
