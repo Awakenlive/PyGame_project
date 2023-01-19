@@ -1,7 +1,7 @@
 import pygame
 from numpy import roll
 import os
-from time import time
+from time import sleep
 
 flag_mainwindow = True
 flag_game = False
@@ -19,6 +19,7 @@ def load_level(filename):
 
 def load_image(name, color_key=None):
     fullname = os.path.join(name)
+    fullname = 'images//' + fullname
     try:
         image = pygame.image.load(fullname)
     except pygame.error as message:
@@ -33,8 +34,8 @@ def load_image(name, color_key=None):
 
 
 tile_images = {
-    'red_orb_1': load_image('images//r_cl1.png'),
-    'blue_orb_1': load_image('images//b_cl1.png')
+    'red_orb_1': load_image('r_cl1.png'),
+    'blue_orb_1': load_image('b_cl1.png')
 }
 
 
@@ -57,7 +58,10 @@ class Sprite(pygame.sprite.Sprite):
     def get_event(self, event):
         pass
 
+
 tile_width = tile_height = 125
+
+
 class Tile(Sprite):
     def __init__(self, tile_type, pos_x, pos_y):
         super().__init__(sprite_group)
@@ -67,18 +71,33 @@ class Tile(Sprite):
         self.abs_pos = (self.rect.x, self.rect.y)
 
 
-player = None
-running = True
-clock = pygame.time.Clock()
-sprite_group = SpriteGroup()
-hero_group = SpriteGroup()
+class Player(Sprite):
+    def __init__(self, pos_x, pos_y):
+        super().__init__(hero_group)
+        self.rect = self.image.get_rect().move(
+            tile_width * pos_x + 15, tile_height * pos_y + 5)
+        self.pos = (pos_x, pos_y)
 
-images = {
-    'red_orb_cl1': pygame.image.load('images//r_cl1.png'),
-    'red_orb_cl2': pygame.image.load('images//r_cl2.png'),
-    'blue_orb_cl1': pygame.image.load('images//b_cl1.png'),
-    'blue_orb_cl2': pygame.image.load('images//b_cl2.png'),
-}
+    def move(self, x, y):
+        camera.dx -= tile_width * (x - self.pos[0])
+        camera.dy -= tile_height * (y - self.pos[1])
+        self.pos = (x, y)
+        for sprite in sprite_group:
+            camera.apply(sprite)
+
+
+class Camera:
+    def __init__(self):
+        self.dx = 0
+        self.dy = 0
+
+    def apply(self, obj):
+        obj.rect.x = obj.abs_pos[0] + self.dx
+        obj.rect.y = obj.abs_pos[1] + self.dy
+
+    def update(self):
+        self.dx = 0
+        self.dy = 0
 
 
 class MainWindow:
@@ -142,15 +161,18 @@ class MainWindow:
 
 
 flag_mouse_click = False  # Если было произведено нажатие на мышку
+speed = 1  # Скорость игрока, чем меньше, тем больше
 
 
 class Game:
     def __init__(self, color, level):
+        global speed
         self.color = color  # Цвет игрока
         self.level = load_level('ананас.txt')
         self.actual_pos = 2
         self.health = int(self.level[1][-1])
         self.generate_level(self.level)
+        # self.play_music(self.level)
 
     def play_music(self, level_inf):  # Воспроизведение музыки
         pygame.mixer.music.load('songs/' + ''.join(level_inf[0]))
@@ -161,31 +183,73 @@ class Game:
         global flag_mouse_click
         flag_mouse_click = True
         if not (button == 'left' and '1' in self.level[self.actual_pos] or button == 'right' and '2' in self.level[
-            self.actual_pos]):
-            self.health -= 1
+            self.actual_pos]):  # если неправильно нажата кнопка мыши
+            self.minus_health()
             self.check_health()
             # Если персонаж мёртв игра начинается с начала
+
+    def new_pos(self):
+        self.actual_pos += 1
+
+    # Обновление позиции
 
     def mouse_dont_clicked(self):
         self.health -= 1
         self.check_health()
 
+    # Если не успели кликнуть
+    def minus_health(self):
+        self.health -= 1
+
     def check_health(self):
         if self.health == 0:
             self.health = int(self.level[1][-1])
             self.actual_pos = 2
-            self.play_music(self.level)
+            screen.fill('black')
+            self.start_pos_draw_line()
+            # self.play_music(self.level)
 
+    # Проверка количества жизней у игрока
     def generate_level(self, level_inf):
         new_player, x, y = None, None, None
-        for y in range(2, len(level_inf)):
-            for x in range(len(level_inf[y])):
-                if level_inf[y][x] == '1':
+        for x in range(2, len(level_inf)):
+            for y in range(len(level_inf[x])):
+                if level_inf[x][y] == '1':
                     Tile('red_orb_1', x, y)
-                elif level_inf[y][x] == '2':
+                elif level_inf[x][y] == '2':
                     Tile('blue_orb_1', x, y)
         return new_player, x, y
+
+    # Генерация уровня
+
     # Загрузка карты уровня
+    def draw_line_position(self):
+        pos_x_1 = 0
+        for i in range(len(self.level[self.actual_pos - 1])):
+            if self.level[self.actual_pos - 1][i] != '.':
+                pos_x_1 = i + 1
+                break
+        pos_x_2 = 0
+        for i in range(len(self.level[self.actual_pos])):
+            if self.level[self.actual_pos][i] != '.':
+                pos_x_2 = i
+                break
+        pygame.draw.line(screen, self.color,
+                         [(self.actual_pos - 1) * 125 + 50, int(pos_x_1) * 125 - 25],
+                         [(self.actual_pos) * 125 + 50, pos_x_2 * 125], 5)
+
+    # Отрисовка позиции игрока
+    def start_pos_draw_line(self):
+        print(self.actual_pos)
+        pos_x_1 = 4
+        pos_x_2 = 0
+        for i in range(len(self.level[self.actual_pos])):
+            if self.level[self.actual_pos][i] != '.':
+                pos_x_2 = i
+                break
+        pygame.draw.line(screen, self.color,
+                         [(self.actual_pos - 1) * 125 + 50, int(pos_x_1) * 125 - 25],
+                         [(self.actual_pos) * 125 + 50, pos_x_2 * 125], 5)
 
 
 class LevelEditor:
@@ -193,44 +257,53 @@ class LevelEditor:
         self.level = level
 
 
-class Camera:
-    def __init__(self):
-        self.dx = 0
-        self.dy = 0
-
-    def apply(self, obj):
-        obj.rect.x = obj.abs_pos[0] + self.dx
-        obj.rect.y = obj.abs_pos[1] + self.dy
-
-    def update(self, target):
-        self.dx = 0
-        self.dy = 0
+clock = pygame.time.Clock()
+sprite_group = SpriteGroup()
+hero_group = SpriteGroup()
+level_map = load_level('ананас.txt')
 
 
 def test_game():
     global flag_mouse_click
-
+    camera = Camera()
+    play_game = Game('red', level_map)
+    hero, max_x, max_y = play_game.generate_level(level_map)
+    # camera.update(hero)
     running = True
     screen_size = (1920, 1080)
     screen = pygame.display.set_mode(screen_size, pygame.FULLSCREEN)
     FPS = 144
-    clock = pygame.time.Clock()
-    sprite_group = SpriteGroup()
-    hero_group = SpriteGroup()
-    level_map = load_level('ананас.txt')
-    play_game = Game('red', level_map)
-    hero, max_x, max_y = play_game.generate_level(level_map)
+    time_start = pygame.time.get_ticks()
+    play_game.draw_line_position()
+    play_game.start_pos_draw_line()
     while running:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
-                if event.type == pygame.MOUSEBUTTONDOWN:
-                    if event.button == 1:  # левая кнопка мыши
-                        play_game.mouse_click('left')
-                    if event.button == 3:  # правая кнопка мыши
-                        play_game.mouse_click('right')
-            if flag_mouse_click is True:
-                flag_mouse_click = False
+            time_end = pygame.time.get_ticks()
+            if event.type == pygame.MOUSEBUTTONDOWN and time_end - time_start <= 1000:
+                if event.button == 1:  # Клик по левой кнопки мышки (красный орб)
+                    play_game.mouse_click('left')
+                    play_game.new_pos()
+                    play_game.draw_line_position()
+                    flag_mouse_click = False
+                    time_start = pygame.time.get_ticks()
+                elif event.button == 3:  # Клик по правой кнопки мышки (синий орб)
+                    play_game.mouse_click('right')
+                    play_game.new_pos()
+                    play_game.draw_line_position()
+                    flag_mouse_click = False
+                    time_start = pygame.time.get_ticks()
+            elif time_end - time_start >= 1000:
+                time_start = pygame.time.get_ticks()
+                if flag_mouse_click is False:  # Если клика не было произведено
+                    play_game.minus_health()
+                    play_game.new_pos()
+                    play_game.draw_line_position()
+                    play_game.check_health()
+                    # Если персонаж умер возвращение на старую позицию, если здоровье есть, то игра продолжается
+            time_end = pygame.time.get_ticks()
+        pygame.display.update()
         sprite_group.draw(screen)
         hero_group.draw(screen)
         clock.tick(FPS)
@@ -275,7 +348,7 @@ def main():
                         elif y_pos_btn + y_pos_move * 4 <= y <= y_pos_btn + y_pos_move * 4 + 100:  # Нажатие по пятой кнопке
                             Settings_start.change_color()
             elif flag_game is True:
-                test_game()
+                pass
             elif flag_leveleditor is True:
                 pass
             clock.tick(FPS)
