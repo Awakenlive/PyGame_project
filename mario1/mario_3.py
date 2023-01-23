@@ -72,6 +72,7 @@ class Player(Sprite):
         camera.dx -= tile_width * (x - self.pos[0])
         camera.dy -= tile_height * (y - self.pos[1])
         self.pos = (x, y)
+        print(len(sprite_group))
         for sprite in sprite_group:
             camera.apply(sprite)
 
@@ -150,6 +151,7 @@ def generate_level(level):
                 Tile('empty', x, y)
                 new_player = Player(x, y)
                 level[y][x] = "."
+    print(new_player, x, y)
     return new_player, x, y
 
 
@@ -187,6 +189,7 @@ while running:
                 move(hero, "left")
             elif event.key == pygame.K_RIGHT:
                 move(hero, "right")
+            print(hero)
     screen.fill(pygame.Color("black"))
     sprite_group.draw(screen)
     hero_group.draw(screen)
