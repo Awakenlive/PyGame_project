@@ -1,7 +1,8 @@
 import pygame
 from numpy import roll
 import os
-from time import sleep
+import sys
+
 flag_mainwindow = True
 flag_game = False
 flag_leveleditor = False
@@ -33,10 +34,13 @@ def load_image(name, color_key=None):
 
 
 tile_images = {
-    'red_orb_1': load_image('r_cl1.png'),
-    'blue_orb_1': load_image('b_cl1.png')
+    'green_line': load_image('right_click.jpg'),
+    'blue_line': load_image('left_click.jpg'),
+    'finish_line': load_image('finish.jpg')
 }
-
+player_image = load_image('player.jpg')
+tile_width = 125
+tile_height = 270
 
 class SpriteGroup(pygame.sprite.Group):
 
@@ -58,9 +62,6 @@ class Sprite(pygame.sprite.Sprite):
         pass
 
 
-tile_width = tile_height = 125
-
-
 class Tile(Sprite):
     def __init__(self, tile_type, pos_x, pos_y):
         super().__init__(sprite_group)
@@ -73,17 +74,20 @@ class Tile(Sprite):
 class Player(Sprite): # Невидимый игрок для камеры
     def __init__(self, pos_x, pos_y):
         super().__init__(hero_group)
+        self.image = player_image
+        self.rect = self.image.get_rect().move(
+            125 * pos_x, 1080 * pos_y)
         self.pos = (pos_x, pos_y)
 
-    def move(self, x, y):
+    def move(self, x, y, flag=None):
         global play_game
-        camera.dx += 125
+        camera.dx -= 125
         self.pos = (x, y)
-        count = 0
+        if flag is True:
+            camera.dx = 0
+            play_game.flag_live = True
         for sprite in sprite_group:
-            if count > play_game.actual_pos:
-                camera.apply(sprite)
-            count += 1
+            camera.apply(sprite)
 
 
 class Camera:
@@ -91,7 +95,6 @@ class Camera:
         self.dx = 0
 
     def apply(self, obj):
-        print(obj.rect.x, obj.abs_pos[0], self.dx)
         obj.rect.x = obj.abs_pos[0] + self.dx
 
 
@@ -99,9 +102,12 @@ class Camera:
         self.dx = 0
 
 
-def move(hero):
+def move(hero, flag=None):
     x, y = hero.pos
-    hero.move(x, y)
+    if flag is True:
+        hero.move(x, y)
+    elif flag is False:
+        hero.move(x, y, True)
 
 
 class MainWindow:
@@ -168,12 +174,16 @@ speed = 1  # Скорость игрока, чем меньше, тем боль
 
 
 class Game:
-    def __init__(self, color, level):
+    def __init__(self, color, level, screen_size=(1920,1080)):
         global speed
         self.color = color  # Цвет игрока
-        self.level = load_level('ананас.txt')
+        self.level = load_level('ананас.txt') # загрузить уровень
         self.actual_pos = 2
-        self.health = int(self.level[1][-1])
+        self.health = int(self.level[1].split()[-1])
+        self.all_lines = []
+        self.flag_live = True
+        self.screen_size = screen_size
+        self.flag_game = True # В конце игры что бы выключить и показать заставку
         # self.play_music(self.level)
 
     def play_music(self, level_inf):  # Воспроизведение музыки
@@ -184,8 +194,10 @@ class Game:
     def mouse_click(self, button):
         global flag_mouse_click, hero
         flag_mouse_click = True
-        if not (button == 'left' and '1' in self.level[self.actual_pos] or button == 'right' and '2' in self.level[
-            self.actual_pos]):  # если неправильно нажата кнопка мыши
+        if 'f' in self.level[self.actual_pos]:
+            self.flag_game = False
+        elif not(button == 'left' and '1' in self.level[self.actual_pos]
+        or button == 'right' and '2' in self.level[self.actual_pos]): # если неправильно нажата кнопка мыши:
             self.health -= 1
             self.check_health()
             # Если персонаж мёртв игра начинается с начала
@@ -202,20 +214,13 @@ class Game:
     # Если не успели кликнуть
 
     def check_health(self):
-        if self.health == 0:
+        if self.health <= 0:
             self.health = int(self.level[1][-1])
             self.actual_pos = 2
             screen.fill('black')
-            self.start_pos_draw_line()
-            self.draw_on_screen()
             # self.play_music(self.level)
+            self.flag_live = False
         # Проверка количества жизней у игрока
-
-    def draw_on_screen(self):
-        global screen
-        image = pygame.Surface([1920, 1080])
-        image.fill(pygame.Color("black"))
-        screen.blit(image, (0, 0))
 
     # Для заливки фона (в том числе все спрайтов)
     def generate_level(self, level_inf):
@@ -223,43 +228,15 @@ class Game:
         for x in range(2, len(level_inf)):
             for y in range(len(level_inf[x])):
                 if level_inf[x][y] == '1':
-                    Tile('red_orb_1', x, y)
+                    Tile('green_line', x, y)
                 elif level_inf[x][y] == '2':
-                    Tile('blue_orb_1', x, y)
+                    Tile('blue_line', x, y)
+                elif level_inf[x][y] == 'f':
+                    Tile('finish_line', x, y)
                 elif level_inf[x][y] == '@':
                     new_player = Player(x, y)
         return new_player, x, y
-
     # Генерация уровня
-
-    def draw_line_position(self):
-        if self.actual_pos > 2:  # Первая позиция рисуется в функции start_pos_draw_line
-            pos_x_1 = 0
-            for i in range(len(self.level[self.actual_pos - 1])):
-                if self.level[self.actual_pos - 1][i] != '.':
-                    pos_x_1 = i + 1
-                    break
-            pos_x_2 = 0
-            for i in range(len(self.level[self.actual_pos])):
-                if self.level[self.actual_pos][i] != '.':
-                    pos_x_2 = i
-                    break
-            pygame.draw.line(screen, self.color,
-                             [(self.actual_pos - 1) * 125 + 50, int(pos_x_1) * 125 - 25],
-                             [(self.actual_pos) * 125 + 50, pos_x_2 * 125], 5)
-
-    # Отрисовка позиции игрока
-    def start_pos_draw_line(self):
-        pos_x_1 = 4
-        pos_x_2 = 0
-        for i in range(len(self.level[self.actual_pos])):
-            if self.level[self.actual_pos][i] != '.':
-                pos_x_2 = i
-                break
-        pygame.draw.line(screen, self.color,
-                         [(self.actual_pos - 1) * 125 + 50, int(pos_x_1) * 125 - 25],
-                         [(self.actual_pos) * 125 + 50, pos_x_2 * 125], 5)
-    # Отрисовка начальной позиции игрока
 
 
 class LevelEditor:
@@ -316,39 +293,51 @@ def test_game():
     screen_size = (1920, 1080)
     screen = pygame.display.set_mode(screen_size, pygame.FULLSCREEN)
     FPS = 144
-    time_start = pygame.time.get_ticks()
-    play_game.draw_line_position()
-    play_game.start_pos_draw_line()
+    time_start = pygame.time.get_ticks() # Таймер если человек не успел кликнуть
     while running:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:  # Для комбинации ALT + F4
                 running = False
+                pygame.quit()
+                sys.exit()
             time_end = pygame.time.get_ticks()
+            keys = pygame.key.get_pressed()
             if event.type == pygame.MOUSEBUTTONDOWN and time_end - time_start <= 1000:
-                if event.button == 1 or event.button == 3:  # Клик по левой кнопки мышки (красный орб)
+                if event.button == 1 or event.button == 3:
                     if event.button == 1:
-                        play_game.mouse_click('left')
-                    elif event.button == 3:  # Клик по правой кнопки мышки (синий орб)
-                        play_game.mouse_click('right')
+                        play_game.mouse_click('left') #клик по левой кнопке
+                    elif event.button == 3:
+                        play_game.mouse_click('right') # клик по правой кнопку
                     play_game.new_pos()
-                    play_game.draw_line_position()
                     flag_mouse_click = False
                     time_start = pygame.time.get_ticks()
-                    move(hero)
+                    move(hero, play_game.flag_live)
+            elif 'f' in play_game.level[play_game.actual_pos]:
+                running = False
             elif time_end - time_start >= 1000:
                 time_start = pygame.time.get_ticks()
                 if flag_mouse_click is False:  # Если клика не было произведено
                     play_game.health -= 1
                     play_game.new_pos()
-                    play_game.draw_line_position()
                     play_game.check_health()
-                    move(hero)
+                    move(hero, play_game.flag_live)
                     # Если персонаж умер возвращение на старую позицию, если здоровье есть, то игра продолжается
-            time_end = pygame.time.get_ticks()
-        pygame.display.update()
+        screen.fill(pygame.Color("black"))
         sprite_group.draw(screen)
+        hero_group.draw(screen)
         clock.tick(FPS)
         pygame.display.flip()
+    running = True
+    while running:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:  # Для комбинации ALT + F4
+                running = False
+                pygame.quit()
+                sys.exit()
+            background = pygame.image.load('images/You_win.jpg')
+            background = pygame.transform.scale(background, (1920, 1080))
+            screen.blit(background, (0, 0))
+            pygame.display.flip()
 
 
 def main():
@@ -378,7 +367,7 @@ def main():
                             level_map = Settings_start.current_level()
                         elif y_pos_btn + y_pos_move <= y <= y_pos_btn + y_pos_move + 100:  # Нажатие по второй кнопке
                             Settings_start.start_game()
-                            break
+                            running = False
                         elif y_pos_btn + y_pos_move * 2 <= y <= y_pos_btn + y_pos_move * 2 + 100:  # Нажатие по третей кнопке
                             Settings_start.make_new_level()
                         elif y_pos_btn + y_pos_move * 3 <= y <= y_pos_btn + y_pos_move * 3 + 100:  # Нажатие по четвёртой кнопке
@@ -395,4 +384,4 @@ def main():
 
 
 if __name__ == '__main__':
-    test_game()
+    main()
